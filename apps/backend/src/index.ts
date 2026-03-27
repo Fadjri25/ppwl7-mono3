@@ -7,10 +7,7 @@ import { createOAuthClient, getAuthUrl } from "./auth";
 import { getCourses, getCourseWorks, getSubmissions } from "./classroom";
 import type { ApiResponse, HealthCheck, User } from "shared";
 
-// Simple in-memory token store (ganti dengan database/session untuk production)
-const tokenStore = new Map<string, { access_token: string; refresh_token?: string }>();
-
-// !!! tambahkan Fungsi isBrowserRequest
+// !!! Fungsi isBrowserRequest
 const isBrowserRequest = (request: Request): boolean => {
   const origin = request.headers.get("origin");
   const referer = request.headers.get("referer");
@@ -25,8 +22,13 @@ const isBrowserRequest = (request: Request): boolean => {
 };
 
 const app = new Elysia()
-  // !!! Setingan CORS dinamis menggunakan env
-  .use(cors({ origin: [process.env.FRONTEND_URL ?? "", process.env.TEST_URL ?? ""] }))
+  // !!! Setingan CORS dinamis menggunakan env (DITAMBAH CREDENTIALS: TRUE)
+  .use(
+    cors({
+      origin: [process.env.FRONTEND_URL ?? "", process.env.TEST_URL ?? ""],
+      credentials: true, // WAJIB ADA AGAR COOKIE BISA LEWAT ANTAR DOMAIN
+    })
+  )
   // !!! Tambahkan pengecekan API_KEY untuk akses browser
   .onRequest(({ request, set }) => {
     const origin = request.headers.get("origin");
@@ -86,38 +88,51 @@ const app = new Elysia()
     const oauth2Client = createOAuthClient();
     const { tokens } = await oauth2Client.getToken(code);
 
-    // Simpan token dengan session ID sederhana
-    const sessionId = crypto.randomUUID();
-    tokenStore.set(sessionId, {
-      access_token: tokens.access_token!,
-      refresh_token: tokens.refresh_token ?? undefined,
+    // !!! SIMPAN KE DATABASE (Menggantikan tokenStore Map agar tidak amnesia di Vercel)
+    const newSession = await prisma.session.create({
+      data: {
+        accessToken: tokens.access_token!,
+        refreshToken: tokens.refresh_token ?? undefined,
+      },
     });
+
     if (!session) return;
 
-    // Set cookie session
-    session.value = sessionId;
-    session.maxAge = 60 * 60 * 24; // 1 hari
+    // !!! SET COOKIE DENGAN KEAMANAN KHUSUS BEDA DOMAIN
+    session.set({
+      value: newSession.id,
+      maxAge: 60 * 60 * 24, // 1 hari
+      path: "/",
+      sameSite: "none", // WAJIB untuk Vercel (beda domain backend & frontend)
+      secure: true,     // WAJIB jika sameSite none
+      httpOnly: true,
+    });
 
-    // !!! Ubah redirect menggunakan process.env.FRONTEND_URL
     return redirect(`${process.env.FRONTEND_URL}`);
   })
 
   // Cek status login
-  .get("/auth/me", ({ cookie: { session } }) => {
+  .get("/auth/me", async ({ cookie: { session } }) => {
     const sessionId = session?.value as string;
-    if (!sessionId || !tokenStore.has(sessionId)) {
-      return { loggedIn: false };
-    }
+    if (!sessionId) return { loggedIn: false };
+
+    // Cek token dari Database Prisma
+    const dbSession = await prisma.session.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!dbSession) return { loggedIn: false };
     return { loggedIn: true, sessionId };
   })
 
   // Logout
-  .post("/auth/logout", ({ cookie: { session } }) => {
-    if(!session) return { success: false };
+  .post("/auth/logout", async ({ cookie: { session } }) => {
+    if (!session) return { success: false };
 
     const sessionId = session?.value as string;
     if (sessionId) {
-      tokenStore.delete(sessionId);
+      // Hapus sesi dari database
+      await prisma.session.delete({ where: { id: sessionId } }).catch(() => {});
       session.remove();
     }
     return { success: true };
@@ -128,23 +143,23 @@ const app = new Elysia()
   // Ambil daftar courses mahasiswa
   .get("/classroom/courses", async ({ cookie: { session }, set }) => {
     const sessionId = session?.value as string;
-    const tokens = sessionId ? tokenStore.get(sessionId) : null;
+    const dbSession = sessionId ? await prisma.session.findUnique({ where: { id: sessionId } }) : null;
 
-    if (!tokens) {
+    if (!dbSession) {
       set.status = 401;
       return { error: "Unauthorized. Silakan login terlebih dahulu." };
     }
 
-    const courses = await getCourses(tokens.access_token);
+    const courses = await getCourses(dbSession.accessToken);
     return { data: courses, message: "Courses retrieved" };
   })
 
   // Ambil coursework + submisi untuk satu course
   .get("/classroom/courses/:courseId/submissions", async ({ params, cookie: { session }, set }) => {
     const sessionId = session?.value as string;
-    const tokens = sessionId ? tokenStore.get(sessionId) : null;
+    const dbSession = sessionId ? await prisma.session.findUnique({ where: { id: sessionId } }) : null;
 
-    if (!tokens) {
+    if (!dbSession) {
       set.status = 401;
       return { error: "Unauthorized. Silakan login terlebih dahulu." };
     }
@@ -152,8 +167,8 @@ const app = new Elysia()
     const { courseId } = params;
 
     const [courseWorks, submissions] = await Promise.all([
-      getCourseWorks(tokens.access_token, courseId),
-      getSubmissions(tokens.access_token, courseId),
+      getCourseWorks(dbSession.accessToken, courseId),
+      getSubmissions(dbSession.accessToken, courseId),
     ]);
 
     // Gabungkan coursework dengan submisi
@@ -166,7 +181,6 @@ const app = new Elysia()
 
     return { data: result, message: "Course submissions retrieved" };
   });
-  // !!! Hapus .listen(3000) dari rantai app
 
 // export App yang asli
 export type App = typeof app;

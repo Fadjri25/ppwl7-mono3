@@ -7,7 +7,9 @@ function App() {
 
   const handleClick = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}`)
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/auth/me`, {
+        credentials: "include", 
+      })
       const data: ApiResponse<HealthCheck> = await res.json()
 
       setResponse(data.data.status)
