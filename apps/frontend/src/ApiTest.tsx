@@ -1,38 +1,72 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import type { User, ApiResponse } from "shared"
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell
+} from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import type { ApiResponse, HealthCheck } from "shared";
 
-function App() {
-  const [response, setResponse] = useState<string>("")
+export default function App() {
+  const [users, setUsers] = useState<User[]>([])
 
-  const handleClick = async () => {
-    try {
-      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/auth/me`, {
-        credentials: "include", 
-      })
-      const data: ApiResponse<HealthCheck> = await res.json()
+  const loadUsers = async () => {
+    // DITAMBAHKAN CREDENTIALS: INCLUDE
+    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/users`, {
+      credentials: "include"
+    })
+    const data: ApiResponse<User[]> = await res.json()
 
-      setResponse(data.data.status)
-    } catch (error) {
-      console.error(error)
-      setResponse("Error connecting to server")
-    }
+    setUsers(data.data)
   }
 
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-      
-      <Button onClick={handleClick}>
-        Get Response
-      </Button>
+  useEffect(() => {
+    loadUsers()
+  }, [])
 
-      <div className="p-4 border rounded w-96">
-        <b>Server Response:</b>
-        <p>{response}</p>
-      </div>
+  return (
+    <div className="flex justify-center p-10">
+
+      <Card className="w-150">
+        <CardHeader>
+          <CardTitle>User List</CardTitle>
+        </CardHeader>
+
+        <CardContent>
+
+          <Button onClick={loadUsers} className="mb-4">
+            Refresh
+          </Button>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>{user.id}</TableCell>
+                  <TableCell>{user.name}</TableCell>
+                  <TableCell>{user.email}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+
+          </Table>
+
+        </CardContent>
+      </Card>
 
     </div>
   )
 }
-
-export default App

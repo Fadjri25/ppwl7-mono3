@@ -94,11 +94,6 @@ function CourseWorkCard({ item }: { item: CourseWorkWithSubmission }) {
 
       <Separator className="shrink-0" />
 
-      {/*
-    ScrollArea membungkus seluruh body — card tidak akan
-    tumbuh melebihi tinggi container grid-nya.
-    Hapus ScrollArea kalau kamu tidak pakai fixed-height grid.
-  */}
       <ScrollArea className="flex-1 min-h-0">
         <CardContent className="flex flex-col gap-3 pt-3 pb-4">
 
@@ -106,7 +101,6 @@ function CourseWorkCard({ item }: { item: CourseWorkWithSubmission }) {
           {courseWork.description && (
             <div className="flex flex-col gap-1">
               <p className="text-xs font-semibold text-muted-foreground">DESKRIPSI</p>
-              {/* line-clamp-4: potong deskripsi panjang, tidak mendorong elemen lain */}
               <p className="text-sm text-foreground whitespace-pre-wrap wrap-break-word line-clamp-4">
                 {courseWork.description}
               </p>
@@ -163,14 +157,13 @@ function CourseWorkCard({ item }: { item: CourseWorkWithSubmission }) {
           {submission?.shortAnswerSubmission?.answer && (
             <div className="flex flex-col gap-1">
               <p className="text-xs font-semibold text-muted-foreground">JAWABAN SINGKATMU</p>
-              {/* break-words: cegah teks panjang tanpa spasi meluber keluar card */}
               <p className="text-sm italic wrap-break-word">
                 "{submission.shortAnswerSubmission.answer}"
               </p>
             </div>
           )}
 
-          {/* Late badge — selalu paling bawah, diberi padding atas */}
+          {/* Late badge */}
           {submission?.late && (
             <div className="pt-1">
               <Badge variant="destructive" className="w-fit text-xs">
@@ -205,10 +198,12 @@ export default function App() {
       .catch(() => setLoggedIn(false))
   }, [])
 
-  // Load daftar courses setelah login
+  // Load daftar courses setelah login (DITAMBAHKAN CREDENTIALS: INCLUDE)
   useEffect(() => {
     if (!loggedIn) return
-    fetch(`${import.meta.env.VITE_BACKEND_URL}/classroom/courses`, { credentials: "include" })
+    fetch(`${import.meta.env.VITE_BACKEND_URL}/classroom/courses`, { 
+      credentials: "include" 
+    })
       .then((r) => r.json())
       .then((d) => setCourses(d.data ?? []))
   }, [loggedIn])
