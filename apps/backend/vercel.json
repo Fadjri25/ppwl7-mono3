@@ -2,5 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "bunVersion": "1.x",
   "installCommand": "bun install",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- ./"
 }

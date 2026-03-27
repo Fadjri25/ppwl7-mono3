@@ -19,3 +19,10 @@ model User {
   email String  @unique
   name  String?
 } 
+
+model Session {
+  id           String   @id @default(uuid())
+  accessToken  String
+  refreshToken String?
+  createdAt    DateTime @default(now())
+}
