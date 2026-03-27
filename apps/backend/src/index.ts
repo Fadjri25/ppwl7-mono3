@@ -99,7 +99,7 @@ const app = new Elysia()
     session.maxAge = 60 * 60 * 24; // 1 hari
 
     // !!! Ubah redirect menggunakan process.env.FRONTEND_URL
-    return redirect(`${process.env.FRONTEND_URL}/classroom`);
+    return redirect(`${process.env.FRONTEND_URL}`);
   })
 
   // Cek status login
